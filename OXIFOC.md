@@ -14,3 +14,8 @@ helpers; their latest-value notification signals are not a protocol queue.
 Android hosts must package `crates/blec/android/lib` (minSdk 26). Dioxus's
 wrapper carries that module through Manganis. Other hosts can include the
 same Gradle module; `embedded-dex` is an explicit alternative for cargo-apk.
+
+Connection setup now opens the notification stream before returning, and
+subscription holds the listener lock while enabling CCCD. This preserves the
+first notification even when it arrives immediately. The regression test
+intentionally omits the scheduling delay used by the older test helpers.

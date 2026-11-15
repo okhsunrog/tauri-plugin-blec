@@ -206,3 +206,32 @@ async fn notification_after_drop_is_not_delivered() {
     assert!(received.lock().unwrap().is_empty());
     assert_eq!(counter.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test(start_paused = true)]
+async fn first_notification_without_yield_after_connect_is_delivered() {
+    let (world, handler) = test_world();
+    let device = stress_device(&world);
+    // Deliberately don't use connect_ok: it lets the listener task settle.
+    let connection = handler
+        .connect(
+            &device.address_string(),
+            crate::OnDisconnectHandler::None,
+            false,
+        )
+        .await
+        .unwrap();
+    let (received, callback) = recorder();
+    connection
+        .subscribe(CHARAC_NOTIFY, None, callback)
+        .await
+        .unwrap();
+    assert!(device.notify(SERVICE, CHARAC_NOTIFY, vec![42]));
+    assert!(
+        wait_until(Duration::from_secs(1), || !received
+            .lock()
+            .unwrap()
+            .is_empty())
+        .await
+    );
+    assert_eq!(*received.lock().unwrap(), vec![vec![42]]);
+}

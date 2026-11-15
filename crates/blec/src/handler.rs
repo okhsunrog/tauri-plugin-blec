@@ -734,6 +734,16 @@ impl Handler {
                 return Err(e);
             }
         };
+        // Open the notification stream before exposing the connection. Merely
+        // spawning listen_notify leaves a window where subscribe() and the
+        // first notification complete before the task has ever been polled.
+        let notifications = match self.link_peripheral(address)?.notifications().await {
+            Ok(stream) => stream,
+            Err(error) => {
+                let _ = self.disconnect_device(address).await;
+                return Err(error.into());
+            }
+        };
         {
             let mut links = self.links();
             let Some(link) = links.get_mut(address) else {
@@ -751,7 +761,7 @@ impl Handler {
                 task.abort();
             }
             link.listen_task = Some(tokio::task::spawn(listen_notify(
-                link.peripheral.clone(),
+                notifications,
                 link.listeners.clone(),
             )));
         }
@@ -1712,6 +1722,14 @@ impl Handler {
             let gatt_lock = self.link_gatt_lock(address)?;
             let _gatt_guard = gatt_lock.lock().await;
             let (dev, charac) = self.link_charac(address, c, service)?;
+            let listeners = self
+                .links()
+                .get(address)
+                .map(|link| link.listeners.clone())
+                .ok_or_else(|| Error::DeviceNotConnected(address.to_string()))?;
+            // A peripheral can notify as soon as CCCD is written. Keep delivery
+            // waiting until its listener is installed, including that first value.
+            let mut listeners = listeners.lock().await;
             info!("subscribing to characteristic {charac:?} of {address}");
             run_with_timeout(
                 dev.subscribe(&charac),
@@ -1720,12 +1738,7 @@ impl Handler {
             )
             .await?;
             info!("subscribed successfully");
-            let listeners = self
-                .links()
-                .get(address)
-                .map(|link| link.listeners.clone())
-                .ok_or_else(|| Error::DeviceNotConnected(address.to_string()))?;
-            listeners.lock().await.push(Listener {
+            listeners.push(Listener {
                 uuid: charac.uuid,
                 service: charac.service_uuid,
                 callback: callback.into(),
@@ -2046,16 +2059,10 @@ async fn filter_peripherals(discovered: &mut Vec<Peripheral>, filter: &ScanFilte
     }
 }
 
-async fn listen_notify(dev: Peripheral, listeners: Arc<Mutex<Vec<Listener>>>) {
-    let mut stream = match dev.notifications().await {
-        Ok(stream) => stream,
-        // the android side drops a peripheral from its connected devices on disconnect, so a
-        // disconnect landing before the first poll makes this fail without anything being wrong
-        Err(e) => {
-            debug!("notification task stopping, no notification stream: {e}");
-            return;
-        }
-    };
+async fn listen_notify(
+    mut stream: Pin<Box<dyn Stream<Item = btleplug::api::ValueNotification> + Send>>,
+    listeners: Arc<Mutex<Vec<Listener>>>,
+) {
     while let Some(data) = stream.next().await {
         debug!(
             "notification received, listeners: {}",
