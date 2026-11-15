@@ -19,3 +19,9 @@ Connection setup now opens the notification stream before returning, and
 subscription holds the listener lock while enabling CCCD. This preserves the
 first notification even when it arrives immediately. The regression test
 intentionally omits the scheduling delay used by the older test helpers.
+
+OS-wide connect events for foreign devices are ignored. Only a connection
+arriving within 60 seconds of our own abandoned pending attempt is torn down.
+This avoids disconnecting peripherals owned by another desktop application.
+The foreign-connection and randomized stress invariants cover this boundary;
+late completion of our timed-out connect remains covered separately.

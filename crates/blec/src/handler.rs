@@ -215,6 +215,9 @@ pub struct Handler {
     /// The links by address. A std mutex, so the synchronous getters can read
     /// it; it is never held across an `.await`.
     links: std::sync::Mutex<HashMap<String, Link>>,
+    // Only abandoned attempts belong to us. OS-wide BlueZ events can describe
+    // connections made by other applications (headphones, keyboards, etc.).
+    abandoned: std::sync::Mutex<HashMap<PeripheralId, tokio::time::Instant>>,
     /// Serializes connection attempts across devices: android's `connectGatt`
     /// misbehaves with several connects in flight. Operations on links that
     /// are already up do not take it.
@@ -370,6 +373,7 @@ impl Handler {
             adapter: Mutex::new(adapter),
             event_pump: Mutex::new(None),
             links: std::sync::Mutex::new(HashMap::new()),
+            abandoned: std::sync::Mutex::new(HashMap::new()),
             connect_lock: Mutex::new(()),
             timeouts: std::sync::Mutex::new(Timeouts::default()),
             state: Mutex::new(HandlerState {
@@ -1186,6 +1190,12 @@ impl Handler {
         let Some(mut link) = link else {
             return;
         };
+        if !link.is_connected() {
+            let now = tokio::time::Instant::now();
+            let mut abandoned = self.abandoned.lock().unwrap();
+            abandoned.retain(|_, expiry| *expiry > now);
+            abandoned.insert(link.peripheral.id(), now + Duration::from_secs(60));
+        }
         if let Some(task) = link.listen_task.take() {
             task.abort();
         }
@@ -1894,11 +1904,18 @@ impl Handler {
                 return;
             }
         }
-        // Nobody is waiting for this connection — typically a `connect()`
-        // that already gave up, whose `connectGatt` completed afterwards.
-        // Adopting it would leave the handler unaware of an open link.
-        warn!("Connect event for {peripheral_id} without a pending connection");
-        self.disconnect_peripheral(&peripheral_id).await;
+        let abandoned = {
+            let now = tokio::time::Instant::now();
+            let mut abandoned = self.abandoned.lock().unwrap();
+            abandoned.retain(|_, expiry| *expiry > now);
+            abandoned.remove(&peripheral_id).is_some()
+        };
+        if abandoned {
+            warn!("Late connect event for abandoned attempt {peripheral_id}");
+            self.disconnect_peripheral(&peripheral_id).await;
+        } else {
+            debug!("Ignoring connection owned by another application: {peripheral_id}");
+        }
     }
 
     /// Disconnects a peripheral directly, bypassing the handler state. Used for

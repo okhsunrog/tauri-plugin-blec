@@ -171,28 +171,24 @@ async fn foreign_disconnect_event_is_ignored() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn spurious_connect_event_is_hung_up() {
+async fn foreign_connections_are_left_alone() {
     let (world, handler) = test_world();
     let device = stress_device(&world);
     let other = other_device(&world);
     scan(handler, crate::models::ScanFilter::None)
         .await
         .unwrap();
-
-    // a link nobody asked for
+    // Another application connects a device discovered by our adapter.
     other.complete_connect();
-    assert!(
-        wait_until(Duration::from_secs(1), || !other.is_connected()).await,
-        "unrequested link was not closed"
-    );
-    assert_eq!(other.ops(), vec![Op::Disconnect]);
+    settle().await;
+    assert!(other.is_connected());
+    assert!(other.ops().is_empty());
     assert_disconnected(handler).await;
-
-    // while connected to `device` a foreign connect event is hung up too
     let counter = connect_ok(handler, &device).await;
-    other.clear_ops();
-    other.complete_connect();
-    assert!(wait_until(Duration::from_secs(1), || !other.is_connected()).await);
+    other.emit_connected_event();
+    settle().await;
+    assert!(other.is_connected());
+    assert!(other.ops().is_empty());
     assert!(handler.is_connected());
     assert!(device.is_connected());
     assert_eq!(counter.load(Ordering::SeqCst), 0);

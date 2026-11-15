@@ -256,13 +256,9 @@ async fn randomized_connection_stress() {
             }
         }
         quiesce(handler, &device).await;
-        // the spurious "other" link must never survive
-        if other.is_connected() {
-            assert!(
-                wait_until(Duration::from_secs(1), || !other.is_connected()).await,
-                "[{label}] unrequested link to the other device kept open"
-            );
-        }
+        // A foreign application's link is never adopted or disconnected.
+        assert!(!handler.is_device_connected(&other.address_string()));
+        assert_eq!(other.count_ops(&crate::mock::Op::Disconnect), 0);
         check_invariants(handler, &device, &mut model, &label).await;
     }
 
