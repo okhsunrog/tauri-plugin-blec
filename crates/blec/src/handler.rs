@@ -1114,6 +1114,7 @@ impl Handler {
     ) -> Result<(), Error> {
         trace!("connect_device: initiating connection to {address}");
         debug!("connecting to {address}",);
+        self.abandoned.lock().unwrap().remove(&device.id());
         let (mut connected_rx, gatt_lock) = {
             let mut links = self.links();
             let link = links

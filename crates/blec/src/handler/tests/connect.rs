@@ -643,3 +643,21 @@ async fn write_and_read_errors_are_reported() {
         .await
         .unwrap();
 }
+
+#[tokio::test(start_paused = true)]
+async fn successful_retry_forgets_abandoned_attempt() {
+    let (world, handler) = test_world();
+    let device = stress_device(&world);
+    device.set_connect_behaviour(ConnectBehaviour::Hang);
+    assert!(connect(handler, &device).await.0.is_err());
+    device.set_connect_behaviour(ConnectBehaviour::Ok);
+    connect_ok(handler, &device).await;
+    handler.disconnect().await.unwrap();
+    device.clear_ops();
+    // A subsequent OS connection is no longer our old cancelled attempt.
+    device.complete_connect();
+    settle().await;
+    assert!(device.is_connected());
+    assert!(device.ops().is_empty());
+    assert!(!handler.is_connected());
+}
