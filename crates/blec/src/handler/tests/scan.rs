@@ -169,3 +169,18 @@ async fn second_scan_replaces_first() {
     assert!(!world.is_scanning());
     assert!(!handler.is_scanning().await);
 }
+
+#[tokio::test(start_paused = true)]
+async fn dropped_scan_receiver_stops_radio() {
+    let (world, handler) = test_world();
+    let _device = stress_device(&world);
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    handler
+        .discover(Some(tx), 10_000, ScanFilter::None, false)
+        .await
+        .unwrap();
+    drop(rx);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(!world.is_scanning());
+    assert!(!handler.is_scanning().await);
+}

@@ -1370,17 +1370,20 @@ impl Handler {
                     if task_paused.load(Ordering::Acquire) {
                         continue;
                     }
-                    let mut discovered = adapter
-                        .peripherals()
-                        .await
-                        .expect("failed to get peripherals");
+                    let mut discovered = match adapter.peripherals().await {
+                        Ok(devices) => devices,
+                        Err(error) => {
+                            warn!("Scan stopped: {error}");
+                            break;
+                        }
+                    };
                     filter_peripherals(&mut discovered, &filter).await;
                     devices = Self::add_devices(&mut self_devices, discovered).await;
                     if !devices.is_empty() {
                         if let Some(tx) = &tx {
-                            tx.send(devices.clone())
-                                .await
-                                .expect("failed to send devices");
+                            if tx.send(devices.clone()).await.is_err() {
+                                break;
+                            }
                         }
                     }
                 }

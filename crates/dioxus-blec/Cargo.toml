@@ -23,18 +23,19 @@ homepage.workspace = true
 
 [dependencies]
 blec = { version = "0.20.0", path = "../blec" } # x-release-please-version
-dioxus = { version = "0.7", default-features = false, features = ["hooks", "signals"] }
+dioxus = { version = "0.8.0-alpha.3", default-features = false, features = ["hooks", "signals"], git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39" }
 tokio = { workspace = true, features = ["sync"] }
 uuid.workspace = true
 tracing.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Only for `#[manganis::ffi]`, which is how `dx` learns about the `android/` module.
-manganis = "0.7"
+manganis = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39", version = "0.8.0-alpha.3" }
 
 [dev-dependencies]
+dioxus = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39", default-features = false, features = ["hooks", "signals", "macro", "html"] }
 # The doc examples are components, which need the `rsx!` and `#[component]` macros.
-dioxus = { version = "0.7", default-features = false, features = ["hooks", "signals", "macro", "html"] }
+
 
 [features]
 # Replaces the platform BLE backend with an in-process mock (see `blec::mock`).
