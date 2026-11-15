@@ -276,7 +276,7 @@ pub fn ConnectedPanel(
                     placeholder: "text to send",
                     oninput: move |e| to_send.set(e.value()),
                     onkeydown: move |e| {
-                        if e.key() == Key::Enter {
+                        if e.key() == Key::Named(NamedKey::Enter) {
                             on_write.call(to_send());
                         }
                     },

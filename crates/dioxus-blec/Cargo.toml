@@ -29,6 +29,7 @@ uuid.workspace = true
 tracing.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
+dioxus-desktop = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39", version = "0.8.0-alpha.3", default-features = false, optional = true }
 # Only for `#[manganis::ffi]`, which is how `dx` learns about the `android/` module.
 manganis = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39", version = "0.8.0-alpha.3" }
 
@@ -41,6 +42,7 @@ dioxus = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef
 # Replaces the platform BLE backend with an in-process mock (see `blec::mock`).
 # Meant for tests and for running an app without Bluetooth hardware. Desktop targets only.
 mock = ["blec/mock"]
+android-webview = ["dep:dioxus-desktop"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

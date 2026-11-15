@@ -8,8 +8,8 @@ publish = false
 [workspace]
 
 [dependencies]
-dioxus-blec = { path = "../../crates/dioxus-blec" }
-dioxus = "0.7"
+dioxus-blec = { version = "0.20.0", path = "../../crates/dioxus-blec", features = ["android-webview"] }
+dioxus = { git = "https://github.com/DioxusLabs/dioxus", rev = "97adf7915e1adfef4e2da436c9bd0b6add0dfa39", version = "0.8.0-alpha.3" }
 tracing = "0.1"
 uuid = "1"
 

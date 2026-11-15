@@ -25,3 +25,10 @@ arriving within 60 seconds of our own abandoned pending attempt is torn down.
 This avoids disconnecting peripherals owned by another desktop application.
 The foreign-connection and randomized stress invariants cover this boundary;
 late completion of our timed-out connect remains covered separately.
+
+For Android WebView hosts, enable `dioxus-blec/android-webview`. Its
+`prepare_android()` dispatches through Wry with the current Activity before
+initializing the bridge; `use_ble` invokes it automatically. Custom shared
+backends call it before their own initialization. Dioxus 0.8 stores an
+Application in `ndk-context`, which cannot itself present runtime permissions.
+The standalone Dioxus example also follows 0.8 and its named-key API.

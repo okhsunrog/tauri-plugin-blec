@@ -74,6 +74,33 @@ mod android {
     }
 }
 
+/// Give the Android backend the current WebView Activity before asking for
+/// permissions. Call from a mounted component/event, after Wry has a window.
+/// With `android-webview`, `use_ble` calls this automatically. Custom hosts
+/// using base `blec` can call this before their own backend initialization.
+/// This is a no-op on other platforms or without `android-webview`.
+pub async fn prepare_android() -> Result<()> {
+    #[cfg(all(target_os = "android", feature = "android-webview"))]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        dioxus_desktop::wry::prelude::dispatch(move |env, activity, _webview| {
+            // SAFETY: Wry owns these JNI references and runs the closure on
+            // Android's UI thread. blec retains global references as needed.
+            let result = unsafe {
+                blec::android::init_with(env.get_raw().cast(), activity.as_raw().cast()).and_then(
+                    |()| {
+                        blec::android::set_activity(env.get_raw().cast(), activity.as_raw().cast())
+                    },
+                )
+            };
+            let _ = tx.send(result);
+        });
+        rx.await
+            .map_err(|_| Error::Android("Activity initialization was cancelled".into()))??;
+    }
+    Ok(())
+}
+
 /// How far [`use_ble`] got with `blec::init()`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InitState {
@@ -125,6 +152,10 @@ pub fn use_ble() -> Ble {
 
 impl Ble {
     async fn start(mut self) {
+        if let Err(error) = prepare_android().await {
+            self.init.set(InitState::Failed(error.to_string()));
+            return;
+        }
         let handler = match blec::init().await {
             Ok(handler) => handler,
             Err(e) => {
